@@ -1,0 +1,390 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Three.js Top View with Obstacles</title>
+    <style>
+        body { margin: 0; }
+        canvas { display: block; }
+        #fps {
+            position: absolute;
+            top: 10px;
+            left: 10px;
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 5px;
+            font-family: monospace;
+            z-index: 1000;
+        }
+        #lifeBar {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            width: 200px;
+            height: 20px;
+            border: 2px solid white;
+            z-index: 1000;
+        }
+        #lifeFill {
+            width: 100%;
+            height: 100%;
+            background-color: green;
+        }
+        #timer {
+            position: absolute;
+            top: 10px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 5px;
+            font-family: monospace;
+            font-size: 40px;
+            z-index: 1000;
+        }
+        #totalTimer {
+            position: absolute;
+            top: 60px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 5px;
+            font-family: monospace;
+            font-size: 40px;
+            z-index: 1000;
+        }
+        #gameOver {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background-color: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            font-size: 24px;
+            text-align: center;
+            z-index: 1001;
+            display: none;
+        }
+        #restartButton {
+            padding: 10px 20px;
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            cursor: pointer;
+            margin-top: 10px;
+        }
+    </style>
+</head>
+<body>
+    <div id="fps">FPS: 0</div>
+    <div id="lifeBar">
+        <div id="lifeFill"></div>
+    </div>
+    <div id="timer">Time: 30</div>
+    <div id="totalTimer">Total Time: 0</div>
+    <div id="gameOver">
+        Game Over!
+        <button id="restartButton">Restart</button>
+    </div>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.155.0/three.min.js"></script>
+    <script>
+        // Three.js setup
+        const scene = new THREE.Scene();
+        const camera = new THREE.PerspectiveCamera(75, window.innerWidth / window.innerHeight, 0.1, 1000);
+        const renderer = new THREE.WebGLRenderer();
+        renderer.setSize(window.innerWidth, window.innerHeight);
+        document.body.appendChild(renderer.domElement);
+
+        // Grid helper
+        const gridSize = 10;
+        const gridDivisions = 10;
+        const gridHelper = new THREE.GridHelper(gridSize, gridDivisions, 0xffffff, 0xffffff);
+        scene.add(gridHelper);
+
+        // Player box (cube)
+        const geometry = new THREE.BoxGeometry(1, 1, 1);
+        const material = new THREE.MeshBasicMaterial({ color: 0x00ff00 });
+        const cube = new THREE.Mesh(geometry, material);
+        scene.add(cube);
+
+        // Top-down camera setup
+        camera.position.y = 10;
+        camera.position.z = 0;
+        camera.rotation.x = -Math.PI / 2;
+
+        // Player life
+        let playerLife = 100;
+        const lifeFill = document.getElementById('lifeFill');
+
+        // Enemies
+        const enemies = [];
+        let maxEnemies = 7;
+        let enemySpeed = 0.02;
+
+        function spawnEnemy() {
+            if (enemies.length < maxEnemies) {
+                const enemyGeometry = new THREE.BoxGeometry(1, 1, 1);
+                const enemyMaterial = new THREE.MeshBasicMaterial({ color: 0xff0000 });
+                const enemy = new THREE.Mesh(enemyGeometry, enemyMaterial);
+                enemy.position.x = (Math.random() - 0.5) * 10;
+                enemy.position.z = (Math.random() - 0.5) * 10;
+                scene.add(enemy);
+                enemies.push({ mesh: enemy, direction: new THREE.Vector3((Math.random() - 0.5) * enemySpeed, 0, (Math.random() - 0.5) * enemySpeed) });
+                setTimeout(() => {
+                    const index = enemies.findIndex(e => e.mesh === enemy);
+                    if (index !== -1) {
+                        scene.remove(enemy);
+                        enemies.splice(index, 1);
+                    }
+                }, 10000);
+            }
+        }
+
+        // Objectives
+        const objectives = [];
+        function spawnObjective() {
+            const objectiveGeometry = new THREE.BoxGeometry(1, 1, 1);
+            const objectiveMaterial = new THREE.MeshBasicMaterial({ color: 0x0000ff });
+            const objective = new THREE.Mesh(objectiveGeometry, objectiveMaterial);
+            objective.position.x = (Math.random() - 0.5) * 10;
+            objective.position.z = (Math.random() - 0.5) * 10;
+            scene.add(objective);
+            objectives.push(objective);
+            setTimeout(() => {
+                const index = objectives.indexOf(objective);
+                if (index !== -1) {
+                    scene.remove(objective);
+                    objectives.splice(index, 1);
+                }
+            }, 8000); // Remove objective after 8 seconds
+        }
+
+        // Spawn objectives
+        setInterval(spawnObjective, 5000);
+
+        // Spawn enemies
+        setInterval(spawnEnemy, 1000);
+
+        // Increase enemy speed every 10 seconds
+        setInterval(() => {
+            enemySpeed += 0.01;
+            enemies.forEach(enemyObj => {
+                enemyObj.direction.x = (Math.random() - 0.5) * enemySpeed;
+                enemyObj.direction.z = (Math.random() - 0.5) * enemySpeed;
+            });
+        }, 10000);
+
+        // Increase max enemies every 30 seconds
+        setInterval(() => {
+            maxEnemies++;
+        }, 30000);
+
+        // Obstacles
+        const obstacles = [];
+        const maxObstacles = 6;
+        function spawnObstacle() {
+            if (obstacles.length < maxObstacles) {
+                const obstacleGeometry = new THREE.BoxGeometry(1, 1, 1);
+                const obstacleMaterial = new THREE.MeshBasicMaterial({ color: 0x808080 }); // Gray color
+                const obstacle = new THREE.Mesh(obstacleGeometry, obstacleMaterial);
+                obstacle.position.x = Math.round((Math.random() - 0.5) * 10);
+                obstacle.position.z = Math.round((Math.random() - 0.5) * 10);
+                scene.add(obstacle);
+                obstacles.push(obstacle);
+            }
+        }
+
+        // Spawn obstacles once at the start
+        for (let i = 0; i < maxObstacles; i++) {
+            spawnObstacle();
+        }
+
+        // Key press handling
+        const keys = {
+            'w': false,
+            'a': false,
+            's': false,'d': false,
+        };
+
+        document.addEventListener('keydown', (event) => {
+            keys[event.key.toLowerCase()] = true;
+        });
+
+        document.addEventListener('keyup', (event) => {
+            keys[event.key.toLowerCase()] = false;
+        });
+
+        // FPS counter
+        const fpsDisplay = document.getElementById('fps');
+        let lastTime = 0;
+
+        // Collision detection
+        function checkCollisions() {
+            enemies.forEach((enemyObj) => {
+                const distance = cube.position.distanceTo(enemyObj.mesh.position);
+                if (distance < 1) {
+                    playerLife -= 10;
+                    scene.remove(enemyObj.mesh);
+                    enemies.splice(enemies.indexOf(enemyObj), 1);
+                }
+            });
+
+            // Objective collisions
+            objectives.forEach((objective, index) => {
+                const distance = cube.position.distanceTo(objective.position);
+                if (distance < 1) {
+                    timeLeft += 5;
+                    scene.remove(objective);
+                    objectives.splice(index, 1);
+                }
+            });
+
+            // Obstacle collisions
+            obstacles.forEach(obstacle => {
+                const distance = cube.position.distanceTo(obstacle.position);
+                if (distance < 1) {
+                    // Prevent player from moving through obstacles
+                    let newX = cube.position.x;
+                    let newZ = cube.position.z;
+
+                    if (keys['w']) newZ += 0.05;
+                    if (keys['s']) newZ -= 0.05;
+                    if (keys['a']) newX += 0.05;
+                    if (keys['d']) newX -= 0.05;
+
+                    cube.position.x = newX;
+                    cube.position.z = newZ;
+                }
+
+                enemies.forEach(enemyObj => {
+                    const enemyDistance = enemyObj.mesh.position.distanceTo(obstacle.position);
+                    if (enemyDistance < 1) {
+                        // Prevent enemies from moving through obstacles
+                        enemyObj.direction.x *= -1;
+                        enemyObj.direction.z *= -1;
+                    }
+                });
+            });
+        }
+
+        // Timer
+        let timeLeft = 30;
+        const timerDisplay = document.getElementById('timer');
+        let timerInterval = setInterval(() => {
+            timeLeft--;
+            timerDisplay.textContent = `Time: ${timeLeft}`;
+            if (timeLeft <= 0) {
+                gameOver();
+            }
+        }, 1000);
+
+        // Total Timer
+        let totalTime = 0;
+        const totalTimerDisplay = document.getElementById('totalTimer');
+        let totalTimerInterval = setInterval(() => {
+            totalTime++;
+            totalTimerDisplay.textContent = `Total Time: ${totalTime}`;
+        }, 1000);
+
+        // Game Over
+        const gameOverScreen = document.getElementById('gameOver');
+        let gameOverFlag = false; // Flag to prevent movement after game over
+
+        function gameOver() {
+            clearInterval(timerInterval);
+            clearInterval(totalTimerInterval);
+            gameOverScreen.style.display = 'block';
+            gameOverFlag = true; // Set the flag to true
+        }
+
+        // Restart
+        document.getElementById('restartButton').addEventListener('click', () => {
+            location.reload();
+        });
+
+        // Animation loop with movement
+        function animate(time) {
+            requestAnimationFrame(animate);
+
+            const deltaTime = time - lastTime;
+            lastTime = time;
+            const fps = Math.round(1000 / deltaTime);
+            fpsDisplay.textContent = `FPS: ${fps}`;
+
+            const speed = 0.05;
+            const gridSizeHalf = gridSize / 2;
+
+            let newX = cube.position.x;
+            let newZ = cube.position.z;
+
+            // Only allow movement if the game is not over
+            if (!gameOverFlag) {
+                if (keys['w']) {
+                    newZ -= speed;
+                }
+                if (keys['s']) {
+                    newZ += speed;
+                }
+                if (keys['a']) {
+                    newX -= speed;
+                }
+                if (keys['d']) {
+                    newX += speed;
+                }
+            }
+
+            // Boundary check for player
+            newX = Math.max(-gridSizeHalf, Math.min(gridSizeHalf, newX));
+            newZ = Math.max(-gridSizeHalf, Math.min(gridSizeHalf, newZ));
+
+            cube.position.x = newX;
+            cube.position.z = newZ;
+
+            // Move enemies and boundary check
+            enemies.forEach((enemyObj) => {
+                let newEnemyX = enemyObj.mesh.position.x + enemyObj.direction.x;
+                let newEnemyZ = enemyObj.mesh.position.z + enemyObj.direction.z;
+
+                // Boundary check for enemies
+                newEnemyX = Math.max(-gridSizeHalf, Math.min(gridSizeHalf, newEnemyX));
+                newEnemyZ = Math.max(-gridSizeHalf, Math.min(gridSizeHalf, newEnemyZ));
+
+                enemyObj.mesh.position.x = newEnemyX;
+                enemyObj.mesh.position.z = newEnemyZ;
+            });
+
+            checkCollisions();
+
+            // Update life bar
+            lifeFill.style.width = `${playerLife}%`;
+            if (playerLife > 50) {
+                lifeFill.style.backgroundColor = 'green';
+            } else if (playerLife > 20) {
+                lifeFill.style.backgroundColor = 'yellow';
+            } else {
+                lifeFill.style.backgroundColor = 'red';
+            }
+
+            if (playerLife <= 0) {
+                gameOver();
+            }
+
+            renderer.render(scene, camera);
+        }
+
+        animate(0);
+
+        // Handle window resize
+        function onWindowResize() {
+            camera.aspect = window.innerWidth / window.innerHeight;
+            camera.updateProjectionMatrix();
+            renderer.setSize(window.innerWidth, window.innerHeight);
+        }
+
+        window.addEventListener('resize', onWindowResize, false);
+    </script>
+</body>
+</html>
