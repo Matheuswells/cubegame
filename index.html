@@ -76,6 +76,20 @@
             cursor: pointer;
             margin-top: 10px;
         }
+        #powerUpTooltip {
+            position: absolute;
+            top: 100px;
+            left: 50%;
+            transform: translateX(-50%);
+            background-color: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 5px;
+            font-family: monospace;
+            font-size: 16px;
+            z-index: 1000;
+            border-radius: 4px;
+            display: none;
+        }
     </style>
 </head>
 <body>
@@ -89,6 +103,7 @@
         Game Over!
         <button id="restartButton">Restart</button>
     </div>
+    <div id="powerUpTooltip">Press SPACE to use power-up!</div>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/0.155.0/three.min.js"></script>
     <script>
         // Three.js setup
@@ -202,20 +217,82 @@
             spawnObstacle();
         }
 
+        // Power-up system
+        let hasPowerUp = false;
+        const powerUps = [];
+        
+        function spawnPowerUp() {
+            // Não spawnar se o jogador já tem um power-up ou se já existe um power-up no mapa
+            if (hasPowerUp || powerUps.length > 0) {
+                return;
+            }
+            
+            const powerUpGeometry = new THREE.BoxGeometry(0.5, 0.5, 0.5);
+            const powerUpMaterial = new THREE.MeshBasicMaterial({ color: 0xff69b4 }); // Rosa
+            const powerUp = new THREE.Mesh(powerUpGeometry, powerUpMaterial);
+            powerUp.position.x = (Math.random() - 0.5) * 10;
+            powerUp.position.z = (Math.random() - 0.5) * 10;
+            scene.add(powerUp);
+            powerUps.push(powerUp);
+            
+            // Remover power-up após 10 segundos se não for coletado
+            setTimeout(() => {
+                const index = powerUps.indexOf(powerUp);
+                if (index !== -1) {
+                    scene.remove(powerUp);
+                    powerUps.splice(index, 1);
+                }
+            }, 10000);
+        }
+
+        // Spawnar power-up a cada 15 segundos
+        setInterval(spawnPowerUp, 15000);
+
+        // Adicionar tooltip para power-up
+        const powerUpTooltip = document.getElementById('powerUpTooltip');
+        powerUpTooltip.style.display = 'none';
+
         // Key press handling
         const keys = {
             'w': false,
             'a': false,
-            's': false,'d': false,
+            's': false,
+            'd': false,
+            ' ': false
         };
 
         document.addEventListener('keydown', (event) => {
             keys[event.key.toLowerCase()] = true;
+            
+            // Usar power-up ao pressionar espaço
+            if (event.key === ' ' && hasPowerUp) {
+                usePowerUp();
+            }
         });
 
         document.addEventListener('keyup', (event) => {
             keys[event.key.toLowerCase()] = false;
         });
+
+        function usePowerUp() {
+            if (!hasPowerUp) return;
+            
+            // Raio de explosão
+            const explosionRadius = 2;
+            
+            // Encontrar inimigos próximos
+            enemies.forEach((enemyObj, index) => {
+                const distance = cube.position.distanceTo(enemyObj.mesh.position);
+                if (distance <= explosionRadius) {
+                    scene.remove(enemyObj.mesh);
+                    enemies.splice(index, 1);
+                }
+            });
+            
+            // Resetar power-up
+            hasPowerUp = false;
+            powerUpTooltip.style.display = 'none';
+        }
 
         // FPS counter
         const fpsDisplay = document.getElementById('fps');
@@ -223,6 +300,17 @@
 
         // Collision detection
         function checkCollisions() {
+            // Power-up collisions
+            powerUps.forEach((powerUp, index) => {
+                const distance = cube.position.distanceTo(powerUp.position);
+                if (distance < 1) {
+                    hasPowerUp = true;
+                    scene.remove(powerUp);
+                    powerUps.splice(index, 1);
+                    powerUpTooltip.style.display = 'block';
+                }
+            });
+
             enemies.forEach((enemyObj) => {
                 const distance = cube.position.distanceTo(enemyObj.mesh.position);
                 if (distance < 1) {
@@ -354,6 +442,13 @@
 
                 enemyObj.mesh.position.x = newEnemyX;
                 enemyObj.mesh.position.z = newEnemyZ;
+            });
+
+            // Rotação dos power-ups
+            powerUps.forEach(powerUp => {
+                powerUp.rotation.x += 0.02;
+                powerUp.rotation.y += 0.03;
+                powerUp.rotation.z += 0.01;
             });
 
             checkCollisions();
